@@ -128,9 +128,12 @@ docker run -p 8000:8000 --env-file .env pr-review-agents
 - **Critic logs what it drops.** The critic returns both verified findings and a "filtered out" list with reasons, so its behavior is inspectable rather than a black box.
 - **Graph built once at startup.** The compiled LangGraph is stateless, so the API reuses it across requests.
 
+
 ## Limitations
 
-- The critic is prompt-based and uses the same model family as the reviewers. It reduces false positives but doesn't guarantee they're eliminated. In my testing so far it has confirmed findings rather than filtered any; I haven't yet built an evaluation set that stresses it.
+- **The critic reduces false positives but does not eliminate them, and can fabricate supporting evidence.** In one test run against a file with no trailing whitespace and a correct final newline, the style agent claimed both problems anyway, quoting invented line content and even fabricating evidence like "(space visible before line end)" that didn't match the actual diff text. The critic's evidence requirement (see Design decisions) caught real overreach in other runs — for example filtering a claim that `SCREAMING_SNAKE_CASE` wasn't "truly a constant," since PEP 8 actually endorses that naming — but it did not catch this fabrication. Requiring quoted evidence narrows the problem; it doesn't solve it, since a model can still invent a plausible-looking quote. This run's output is public: [github.com/Lohithchandra8/pr-review-agents/pull/1#issuecomment-5895518735](https://github.com/Lohithchandra8/pr-review-agents/pull/1#issuecomment-5895518735).
+- The logic agent has also missed real bugs in earlier runs — for example, `row["email"]` on a plain `sqlite3.Cursor` result, which raises `TypeError` because `fetchone()` returns a tuple, not a dict. On a later run it did catch this. Results vary between runs on the same diff.
+- The critic is prompt-based and uses the same model family as the reviewers, so it shares their failure modes rather than acting as an independent check.
 - Very large diffs aren't truncated or chunked yet.
 - The `/review` endpoint has no authentication and doesn't verify GitHub webhook signatures, so don't expose it publicly as-is.
 - No automated test suite yet.
