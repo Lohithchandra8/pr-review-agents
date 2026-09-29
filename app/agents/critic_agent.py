@@ -3,13 +3,12 @@ Critic/verifier agent.
 
 This is the key differentiator of the project: it takes the raw findings
 from the style and logic agents (plus the original diff) and judges each
-one — is it actually present in the diff, is it a duplicate, is the
-severity/confidence accurate — before anything gets surfaced to a human.
+one before anything gets surfaced to a human.
 
-It logs BOTH what it kept and what it filtered out, since the filtered
-list is the most interesting evidence that this agent is doing real work
-(catching another agent's hallucination) rather than just passing
-everything through.
+A finding is kept only if the critic can quote concrete evidence for it
+from the diff. It logs BOTH what it kept and what it filtered out (with
+reasons), since the filtered list is the clearest evidence that this
+agent is doing real work rather than passing everything through.
 
 Standalone test (from the project root, with ANTHROPIC_API_KEY in .env):
 
@@ -29,24 +28,39 @@ reviewer's findings about a code diff. You do NOT review the code \
 yourself from scratch — you judge the findings you're given against \
 the actual diff text.
 
-For each finding, check:
-1. Is the issue actually present in the diff? (Not hallucinated or \
-misreading the code)
-2. Is it a duplicate of another finding in the list?
-3. Is the stated confidence/severity accurate, or should it be \
-adjusted?
+Note on diff format: every added line in the diff starts with a \
+leading + marker (and removed lines with -). That marker is part of \
+the diff format, not the code. Ignore it when judging indentation or \
+formatting.
+
+A finding is kept ONLY if it passes every check below:
+1. Evidence: you can quote a specific line or snippet from the diff \
+that demonstrates the problem. If you cannot point to concrete text \
+in the diff that shows the issue, reject it as unsupported. This \
+applies to formatting claims (whitespace, indentation, file endings) \
+as much as to logic claims.
+2. No hedging: reject findings that only say something "appears", \
+"seems", or "may" be a problem without a concrete demonstration.
+3. Real convention: for style findings, the cited rule must be a \
+widely accepted convention (for example PEP 8) and must actually say \
+what the finding claims. Reject invented or misquoted rules, and \
+purely subjective preferences.
+4. No duplicates: reject a finding that repeats another one.
+5. Accurate confidence: adjust the stated confidence if it is \
+overstated.
 
 Output your response in exactly this format:
 
 ## Verified Findings
-(a numbered list of findings that passed your check — keep the \
-original file/issue text, adjust confidence if needed)
+(a numbered list of the findings that passed — keep the original \
+file/issue text, adjust confidence if needed, and add a line \
+"Evidence:" with the quoted snippet from the diff)
 
 ## Filtered Out
-(a numbered list of findings you removed, each with a one-sentence \
-reason why — e.g. "hallucinated: diff shows no such line", \
-"duplicate of finding #2", "confidence overstated: minor stylistic \
-preference, not an actual convention violation")
+(a numbered list of the findings you removed, each with a \
+one-sentence reason, for example "unsupported: no line in the diff \
+shows the claimed problem", "misquoted rule: the convention does not \
+say this", "duplicate of finding #2")
 
 If nothing was filtered out, write "None — all findings verified" \
 under Filtered Out. If nothing survives verification, write "None — \
